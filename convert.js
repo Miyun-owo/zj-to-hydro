@@ -13,14 +13,21 @@ async function convert() {
     
     const rawData = fs.readFileSync(filePath, 'utf8');
     const data = JSON.parse(rawData);
-    const zip = new JSZip();
 
+    // 檢查 problemid 格式
+    const pidRegex = /^[a-zA-Z]\d{3}$/;
+    if (!pidRegex.test(data.problemid)) {
+        console.error(`Error: Invalid problemid format "${data.problemid}".`);
+        console.error("Expected format: One letter followed by three digits (e.g., b432).");
+        return;
+    }
+    const zip = new JSZip();
     console.log(`Processing problem: ${data.title} (ID: ${data.problemid})...`);
 
-    // 建立目錄結構：直接以 {problemid} 作為根目錄
+    // 建立目錄結構
     const problemFolder = zip.folder(data.problemid);
 
-    // 2. 產生 problem_zh.md (移除 HTML 標籤)
+    // 2. 產生 problem_zh.md
     const cleanHtml = (str) => (str ? str.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : '');
     const mdContent = `
 ## 內容
