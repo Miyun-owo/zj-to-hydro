@@ -6,6 +6,7 @@ export function htmlToOJMarkdown(html) {
 
   return walk(document.body)
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/(\$\$[^\$]*\$\$)/g, '$1\n')
     .trim();
 }
 
@@ -19,21 +20,21 @@ function walk(node) {
     const children = Array.from(el.childNodes).map(walk).join('');
 
     switch (el.tagName.toLowerCase()) {
-      case 'h1': return `# ${children}\n\n`;
-      case 'h2': return `## ${children}\n\n`;
-      case 'h3': return `### ${children}\n\n`;
-      case 'h4': return `#### ${children}\n\n`;
-      case 'h5': return `##### ${children}\n\n`;
-      case 'h6': return `###### ${children}\n\n`;
+      case 'h1': return `<h1> ${children}</h1>\n\n`;
+      case 'h2': return `<h2> ${children}</h2>\n\n`;
+      case 'h3': return `<h3> ${children}</h3>\n\n`;
+      case 'h4': return `<h4> ${children}</h4>\n\n`;
+      case 'h5': return `<h5> ${children}</h5>\n\n`;
+      case 'h6': return `<h6> ${children}</h6>\n\n`;
       case 'p': return `${children}\n\n`;
-      case 'strong': return `**${children}**`;
-      case 'em': return `*${children}*`;
+      case 'strong': return `<strong>${children}</strong>`;
+      case 'em': return `<em>${children}</em>`;
       case 'sup': return `<sup>${children}</sup>`;
       case 'sub': return `<sub>${children}</sub>`;
       case 'code':
         return el.parentElement?.tagName.toLowerCase() === 'pre'
           ? children
-          : `\`${children}\``;
+          : `<code>${children}</code>`;
       case 'pre':
         return `\n\`\`\`\n${children}\n\`\`\`\n`;
       case 'ul':
@@ -52,6 +53,8 @@ function walk(node) {
         return `\n---\n\n`;
       case 'br':
         return `\n`;
+      case 'div':
+        return `${children}\n`;
       default:
         return children;
     }
@@ -65,7 +68,7 @@ function renderSpan(el) {
   const children = Array.from(el.childNodes).map(walk).join('');
 
   // Math spans
-  if (cls.includes('math-inline')) {
+  if (cls.includes('math-inline') || cls.includes('MathJax')) {
     return `$${extractMath(el)}$`;
   }
   if (cls.includes('math-display')) {
@@ -99,17 +102,79 @@ function extractMath(el) {
   return normalizeMath(el.textContent ?? '');
 }
 
+// LaTeX command to Unicode symbol mapping
+const LATEX_TO_UNICODE = {
+  // Comparison operators
+  '\\leq': '≤', '\\le': '≤',
+  '\\geq': '≥', '\\ge': '≥',
+  '\\neq': '≠', '\\ne': '≠',
+  '\\approx': '≈',
+  '\\equiv': '≡',
+  
+  // Arithmetic operators
+  '\\times': '×',
+  '\\cdot': '·',
+  '\\div': '÷',
+  '\\pm': '±',
+  '\\mp': '∓',
+  
+  // Arrows
+  '\\to': '→', '\\rightarrow': '→',
+  '\\leftarrow': '←',
+  '\\leftrightarrow': '↔',
+  '\\Rightarrow': '⇒',
+  '\\Leftarrow': '⇐',
+  '\\Leftrightarrow': '⇔',
+  
+  // Greek letters (lowercase)
+  '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ',
+  '\\epsilon': 'ε', '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ',
+  '\\iota': 'ι', '\\kappa': 'κ', '\\lambda': 'λ', '\\mu': 'μ',
+  '\\nu': 'ν', '\\xi': 'ξ', '\\pi': 'π', '\\rho': 'ρ',
+  '\\sigma': 'σ', '\\tau': 'τ', '\\upsilon': 'υ', '\\phi': 'φ',
+  '\\chi': 'χ', '\\psi': 'ψ', '\\omega': 'ω',
+  
+  // Greek letters (uppercase)
+  '\\Gamma': 'Γ', '\\Delta': 'Δ', '\\Theta': 'Θ', '\\Lambda': 'Λ',
+  '\\Xi': 'Ξ', '\\Pi': 'Π', '\\Sigma': 'Σ', '\\Phi': 'Φ',
+  '\\Psi': 'Ψ', '\\Omega': 'Ω',
+  
+  // Logic symbols
+  '\\forall': '∀', '\\exists': '∃',
+  '\\wedge': '∧', '\\vee': '∨', '\\neg': '¬',
+  '\\land': '∧', '\\lor': '∨',
+  
+  // Set theory
+  '\\in': '∈', '\\notin': '∉',
+  '\\subset': '⊂', '\\subseteq': '⊆',
+  '\\supset': '⊃', '\\supseteq': '⊇',
+  '\\cup': '∪', '\\cap': '∩',
+  '\\emptyset': '∅',
+  
+  // Misc
+  '\\infty': '∞', '\\partial': '∂',
+  '\\nabla': '∇', '\\sum': '∑',
+  '\\prod': '∏', '\\int': '∫',
+};
+
 function normalizeMath(s) {
-  return s
-    .replace(/\s+/g, ' ')
-    .replace(/\\leq?/g, '≤')
-    .replace(/\\geq?/g, '≥')
-    .replace(/\\times/g, '×')
-    .replace(/\\cdot/g, '·')
-    .replace(/\\to/g, '→')
-    .replace(/\\[a-zA-Z]+/g, '')
-    .replace(/\\/g, '')
-    .trim();
+  // Normalize whitespace first
+  s = s.replace(/\s+/g, ' ');
+  
+  // Replace all known LaTeX commands with Unicode equivalents
+  // Sort by length (descending) to match longer commands first
+  const commands = Object.keys(LATEX_TO_UNICODE).sort((a, b) => b.length - a.length);
+  for (const cmd of commands) {
+    s = s.replace(new RegExp(cmd.replace(/\\/g, '\\\\'), 'g'), LATEX_TO_UNICODE[cmd]);
+  }
+  
+  // Remove any remaining unrecognized LaTeX commands
+  s = s.replace(/\\[a-zA-Z]+/g, '');
+  
+  // Remove any remaining backslashes
+  s = s.replace(/\\/g, '');
+  
+  return s.trim();
 }
 
 function renderImage(el) {
