@@ -53,6 +53,12 @@ class ImportJsonHandler extends Handler {
             return result || '';
         };
 
+        let descriptionMarkdown = await convertHtmlToMarkdown(data.content);
+
+        if (data.author) {
+            descriptionMarkdown = `Author: ${data.author}\n\n${descriptionMarkdown}`;
+        }
+
         const contentMarkdown = buildContent({
             description: (await convertHtmlToMarkdown(data.content)),
             input: await convertHtmlToMarkdown(data.theinput),
