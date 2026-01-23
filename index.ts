@@ -111,7 +111,7 @@ class ImportJsonHandler extends Handler {
                     entry.entryName.toLowerCase().endsWith('.zjson')
                 );
 
-                if (jsonEntries.length === 0) throw new ValidationError('ZIP 內找不到任何 .zjson');
+                if (jsonEntries.length === 0) throw new ValidationError('ZIP ?????? .zjson');
                 
                 for (const jsonEntry of jsonEntries) {
                     const rawData = JSON.parse(jsonEntry.getData().toString('utf8'));
@@ -122,7 +122,7 @@ class ImportJsonHandler extends Handler {
                     }
                 }
             } catch (e: any) {
-                throw new ValidationError('file', null, `ZIP內部解析錯誤: ${e.message}`);
+                throw new ValidationError('file', null, `ZIP??????: ${e.message}`);
             }
         } else {
             console.log('DEBUG: Plain JSON logic triggered');
@@ -130,7 +130,7 @@ class ImportJsonHandler extends Handler {
                 const rawData = JSON.parse(buf.toString('utf8'));
                 await this.processZJson(domainId, rawData);
             } catch (e: any) {
-                throw new ValidationError('file', null, `純JSON解析失敗: ${e.message}`);
+                throw new ValidationError('file', null, `?JSON????: ${e.message}`);
             }
         }
     }
@@ -151,7 +151,7 @@ class ImportJsonHandler extends Handler {
             this.response.redirect = this.url('problem_main', { domainId });
         } catch (e: any) {
             console.error('Import Error Trace:', e);
-            throw new ValidationError('file', null, `導入失敗：${e.message}`);
+            throw new ValidationError('file', null, `????:${e.message}`);
         }
     }
 }
@@ -160,9 +160,10 @@ export async function apply(ctx : Context) {
     ctx.Route('problem_import_json', '/problem/import/json', ImportJsonHandler, PERM.PERM_CREATE_PROBLEM);
     ctx.injectUI('ProblemAdd', 'problem_import_json', { icon: 'copy', text: 'From JSON/ZIP Export' });
     ctx.i18n.load('zh', {
-        'From JSON/ZIP Export': 'Import from DDJ-v1',
+        'From JSON/ZIP Export': 'Import from DDJ-v1/Zerojudge',
     });
 }
+
 
 
 
