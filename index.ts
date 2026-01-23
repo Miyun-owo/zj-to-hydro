@@ -60,7 +60,7 @@ class ImportJsonHandler extends Handler {
         }
 
         const contentMarkdown = buildContent({
-            description: (await convertHtmlToMarkdown(data.content)),
+            description: descriptionMarkdown,
             input: await convertHtmlToMarkdown(data.theinput),
             output: await convertHtmlToMarkdown(data.theoutput),
             samples: [[data.sampleinput, data.sampleoutput]],
@@ -159,7 +159,7 @@ export async function apply(ctx : Context) {
     ctx.Route('problem_import_json', '/problem/import/json', ImportJsonHandler, PERM.PERM_CREATE_PROBLEM);
     ctx.injectUI('ProblemAdd', 'problem_import_json', { icon: 'copy', text: 'From JSON/ZIP Export' });
     ctx.i18n.load('zh', {
-        'From JSON/ZIP Export': '從 JSON/ZIP 導入(DDJ-v1匯入)',
+        'From JSON/ZIP Export': 'Import from DDJ-v1',
     });
 }
 
