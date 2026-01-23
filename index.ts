@@ -56,7 +56,8 @@ class ImportJsonHandler extends Handler {
         let descriptionMarkdown = await convertHtmlToMarkdown(data.content);
 
         if (data.author) {
-            descriptionMarkdown = `Author: ${data.author}\n\n${descriptionMarkdown}`;
+            const authorUrl = `https://dandanjudge.fdhs.tyc.edu.tw/UserStatistic?account=${encodeURIComponent(data.author)}`;
+            descriptionMarkdown = `**Author**: [${data.author}](${authorUrl})\n\n${descriptionMarkdown}`;
         }
 
         const contentMarkdown = buildContent({
