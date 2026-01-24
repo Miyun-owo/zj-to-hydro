@@ -2,9 +2,9 @@ import AdmZip from 'adm-zip';
 import { promises as fsNative } from 'fs';
 import {
     buildContent, Context, Handler, PERM,
-    ProblemModel, Schema, ValidationError, yaml, 
+    ProblemModel, Schema, ValidationError, yaml,
+    Service
 } from 'hydrooj';
-
 import { htmlToOJMarkdown } from './src/zjHtmlToMarkdown';
 
 // define ZJson Schema
@@ -27,6 +27,7 @@ const ZJsonSchema = Schema.object({
 });
 
 class ImportJsonHandler extends Handler {
+    static ZjUrl : string;
     async processZJson(domainId: string, rawData: any) {
         let data;
         try {
@@ -54,10 +55,16 @@ class ImportJsonHandler extends Handler {
         };
 
         let descriptionMarkdown = await convertHtmlToMarkdown(data.content);
-
+        const authorBaseUrl: string = this.context.options['zj_to_hydro.author_base_url'];
         if (data.author) {
-            const authorUrl = `https://dandanjudge.fdhs.tyc.edu.tw/UserStatistic?account=${encodeURIComponent(data.author)}`;
-            descriptionMarkdown = `**Author**: [${data.author}](${authorUrl})\n\n${descriptionMarkdown}`;
+            if (authorBaseUrl && authorBaseUrl.trim()) {
+                const connector = authorBaseUrl.includes('?') ? '&account=' : '?account=';
+                const cleanUrl = authorBaseUrl.replace(/\/+$/, ''); // 清除結尾斜線
+                const authorUrl = `${cleanUrl}${connector}${encodeURIComponent(data.author)}`;
+                descriptionMarkdown = `**Author**: [${data.author}](${authorUrl})\n\n${descriptionMarkdown}`;
+            } else {
+                descriptionMarkdown = `**Author**: ${data.author}\n\n${descriptionMarkdown}`;
+            }
         }
 
         const contentMarkdown = buildContent({
@@ -156,12 +163,21 @@ class ImportJsonHandler extends Handler {
     }
 }
 
-export async function apply(ctx : Context) {
-    ctx.Route('problem_import_json', '/problem/import/json', ImportJsonHandler, PERM.PERM_CREATE_PROBLEM);
-    ctx.injectUI('ProblemAdd', 'problem_import_json', { icon: 'copy', text: 'From JSON/ZIP Export' });
-    ctx.i18n.load('zh', {
-        'From JSON/ZIP Export': 'Import from DDJ-v1/Zerojudge',
-    });
+export default class ImportJsonService extends Service {
+    static Config = Schema.object({
+    ZjBaseUrl: Schema.string().description('ZJ/DDJ轉檔預設Author網址').required(),
+    })
+    constructor(ctx: Context, config: ReturnType<typeof ImportJsonService.Config>) {
+        super(ctx, 'import-json-service');
+        ctx.Route('problem_import_json', '/problem/import/json', ImportJsonHandler, PERM.PERM_CREATE_PROBLEM);
+        ctx.injectUI('ProblemAdd', 'problem_import_json', { icon: 'copy', text: 'From JSON/ZIP Export' });
+        ctx.i18n.load('zh', {
+            'From JSON/ZIP Export': '從 JSON/ZIP 導入 (ZJSON)',
+            'Author Statistic Base URL': '作者統計頁面基準網址',
+            'Example: https://dandanjudge.fdhs.tyc.edu.tw/UserStatistic': '例如: https://dandanjudge.fdhs.tyc.edu.tw/UserStatistic (留空則不嵌入連結)',
+        });
+        ImportJsonHandler.ZjUrl = config.ZjBaseUrl;
+    } 
 }
 
 

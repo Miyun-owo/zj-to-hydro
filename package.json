@@ -12,7 +12,9 @@
   },
   "keywords": [],
   "author": "Miyun-owo",
-  "contributors": ["Bryan0324//grasscat"],
+  "contributors": [
+    "Bryan0324//grasscat"
+  ],
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
@@ -21,6 +23,7 @@
   "homepage": "https://github.com/Miyun-owo/zj-to-hydro#readme",
   "dependencies": {
     "adm-zip": "^0.5.16",
+    "hydrooj": "^5.0.0-beta.17",
     "js-yaml": "^4.1.1",
     "jsdom": "^27.4.0",
     "jszip": "^3.10.1"
