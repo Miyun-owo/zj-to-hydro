@@ -1,6 +1,6 @@
 {
   "name": "zj-to-hydro",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "dandanjudge v1 to v2 transfer tool",
   "main": "index.ts",
   "scripts": {
