@@ -117,7 +117,7 @@ class ImportJsonHandler extends Handler {
                     entry.entryName.toLowerCase().endsWith('.zjson')
                 );
 
-                if (jsonEntries.length === 0) throw new ValidationError('ZIP內找不到任何.zjson');
+                if (jsonEntries.length === 0) throw new ValidationError('Can\'t find any .zjson files in the ZIP');
                 
                 for (const jsonEntry of jsonEntries) {
                     const rawData = JSON.parse(jsonEntry.getData().toString('utf8'));
@@ -128,7 +128,7 @@ class ImportJsonHandler extends Handler {
                     }
                 }
             } catch (e: any) {
-                throw new ValidationError('file', null, `ZIP內部解析錯誤:: ${e.message}`);
+                throw new ValidationError('file', null, `zip parsing failed: ${e.message}`);
             }
         } else {
             console.log('DEBUG: Plain JSON logic triggered');
@@ -136,7 +136,7 @@ class ImportJsonHandler extends Handler {
                 const rawData = JSON.parse(buf.toString('utf8'));
                 await this.processZJson(domainId, rawData);
             } catch (e: any) {
-                throw new ValidationError('file', null, `純JSON解析失敗: ${e.message}`);
+                throw new ValidationError('file', null, `plain JSON parsing failed: ${e.message}`);
             }
         }
     }
@@ -149,16 +149,15 @@ class ImportJsonHandler extends Handler {
         console.log('Post started');
         const file = this.request.files.file;
         if (!file) throw new ValidationError('file');
-
-        try {
-            console.log('File path:', file.filepath);
-            await this.fromFile(domainId, file.filepath);
-            console.log('fromFile finished');
-            this.response.redirect = this.url('problem_main', { domainId });
-        } catch (e: any) {
-            console.error('Import Error Trace:', e);
-            throw new ValidationError('file', null, `導入失敗：${e.message}`);
-        }
+            try {
+                    console.log('File path:', file.filepath);
+                    await this.fromFile(domainId, file.filepath);
+                    console.log('fromFile finished');
+                    this.response.redirect = this.url('problem_main', { domainId });
+                } catch (e: any) {
+                    console.error('Import Error Trace:', e);
+                    throw new ValidationError('file', null, `import failed: ${e.message}`);
+                }
     }
 }
 
