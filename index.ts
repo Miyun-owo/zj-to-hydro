@@ -149,16 +149,15 @@ class ImportJsonHandler extends Handler {
         console.log('Post started');
         const file = this.request.files.file;
         if (!file) throw new ValidationError('file');
+        
 
-        try {
+        
             console.log('File path:', file.filepath);
             await this.fromFile(domainId, file.filepath);
             console.log('fromFile finished');
             this.response.redirect = this.url('problem_main', { domainId });
-        } catch (e: any) {
-            console.error('Import Error Trace:', e);
-            throw new ValidationError('file', null, `import failed: ${e.message}`);
-        }
+
+        
     }
 }
 
