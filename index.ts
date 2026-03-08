@@ -216,8 +216,8 @@ class ImportZerojudgeHandler extends Handler {
 
 export default class ImportJsonService extends Service {
     static Config = Schema.object({
-        ZjBaseUrl: Schema.string().description('Author Statistic Base URL').required(),
-    })
+    ZjBaseUrl: Schema.string().description('Author Statistic Base URL'),
+    });
     constructor(ctx: Context, config: ReturnType<typeof ImportJsonService.Config>) {
         super(ctx, 'import-json-service');
         ctx.Route('problem_import_json', '/problem/import/json', ImportZerojudgeHandler, PERM.PERM_CREATE_PROBLEM);
