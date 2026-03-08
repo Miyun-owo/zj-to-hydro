@@ -16,7 +16,7 @@
     "Bryan0324//grasscat"
   ],
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/Miyun-owo/zj-to-hydro/issues"
   },
