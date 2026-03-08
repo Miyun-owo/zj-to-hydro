@@ -24,24 +24,30 @@ const ZJsonSchema = Schema.object({
     testoutfiles: Schema.array(Schema.string()),
     timelimits: Schema.any(),
     memorylimit: Schema.number(),
+    samplecode: Schema.string(),
+    language: Schema.string(),
+    specialjudge_code: Schema.string(),
+    specialjudge_language: Schema.any(),
 });
 
-class ImportJsonHandler extends Handler {
-    static ZjUrl : string;
+class ImportZerojudgeHandler extends Handler {
+    static zjUrl?: string; // fix: ? added, camelCase
     async processZJson(domainId: string, rawData: any) {
         let data;
         try {
             data = ZJsonSchema(rawData);
-        } catch (e : any) {
-            throw new ValidationError('file', null, `Invalid ZJSON content: ${e.message}`);
+        } catch (e: unknown) {
+            if (e instanceof ValidationError) throw e;
+            else if (e instanceof Error) throw new ValidationError('file', null, `Invalid ZJSON content: ${e.message}`);
+            else throw new ValidationError('file', null, `Invalid ZJSON content`);
         }
         const pidRegex = /^[a-zA-Z]\d{3}$/;
         if (!pidRegex.test(data.problemid)) {
-            throw new ValidationError('problemid', `Invalid PID: ${data.problemid}. Must be one letter + 3 digits.`);
+            throw new ValidationError('problemid', null, `Invalid PID: ${data.problemid}. Must be one letter + 3 digits.`);
         }
 
         if (await ProblemModel.get(domainId, data.problemid)) {
-            throw new ValidationError('problemid', `PID ${data.problemid} already exists.`);
+            throw new ValidationError('problemid', null, `PID ${data.problemid} already exists.`);
         }
 
         const convertHtmlToMarkdown = async (html: string): Promise<string> => {
@@ -54,7 +60,7 @@ class ImportJsonHandler extends Handler {
         };
 
         let descriptionMarkdown = await convertHtmlToMarkdown(data.content);
-        const authorBaseUrl: string = this.context.options['zj_to_hydro.author_base_url'];
+        const authorBaseUrl = ImportZerojudgeHandler.zjUrl;
         if (data.author) {
             if (authorBaseUrl && authorBaseUrl.trim()) {
                 const connector = authorBaseUrl.includes('?') ? '&account=' : '?account=';
@@ -79,9 +85,10 @@ class ImportJsonHandler extends Handler {
             this.user._id, tags,
         );
         const tasks = [];
+        const default_tl = Array.isArray(data.timelimits) ? Math.max(...data.timelimits) : data.timelimits;
         const config = {
             type: 'default',
-            time: Array.isArray(data.timelimits) ? `${data.timelimits[0]}s` : `${data.timelimits}s`,
+            time: `${default_tl}s`,
             memory: `${data.memorylimit}mb`,
             subtasks: [] as any[],
         };
@@ -92,13 +99,51 @@ class ImportJsonHandler extends Handler {
             const outName = `${i + 1}.out`;
             const inContent = data.testinfiles && data.testinfiles[i] ? data.testinfiles[i] : "";
             const outContent = data.testoutfiles && data.testoutfiles[i] ? data.testoutfiles[i] : "";
+            const score = data.scores[i] ?? 100 / data.testfilelength;
+            const tl = data.timelimits[i] ?? default_tl;
             tasks.push(ProblemModel.addTestdata(domainId, pid, inName, Buffer.from(inContent || '')));
-            tasks.push(ProblemModel.addTestdata(domainId, pid, outName, Buffer.from(outContent   || '')));
+            tasks.push(ProblemModel.addTestdata(domainId, pid, outName, Buffer.from(outContent || '')));
             config.subtasks.push({
-                cases: [{ input: inName, output: outName }]
+                time: `${tl}s`,
+                score,
+                if: [],
+                id: i + 1,
+                type: 'sum',
+                cases: [{ input: inName, output: outName }],
             });
         }
+        if (data.specialjudge_code) {
+            const spj_code = data.specialjudge_code;
+            const lang_suffix = data.specialjudge_language.suffix ?? '';
+            const checker_filename = `checker.${lang_suffix}`;
+            tasks.push(ProblemModel.addTestdata(domainId, pid, checker_filename, Buffer.from(spj_code ?? '')));
+        }
+        if (data.samplecode) {
+            const sample_code = data.samplecode;
+            let suffix;
+            switch (data.language) {
+                case 'C':
+                    suffix = '.c';
+                    break;
+                case 'CPP':
+                    suffix = '.cpp';
+                    break;
+                case 'JAVA':
+                    suffix = '.java';
+                    break;
+                case 'PYTHON':
+                    suffix = '.py';
+                    break;
+                case 'PASCAL':
+                    suffix = '.pas';
+                    break;
+                default:
+                    suffix = '';
+            }
+            tasks.push(ProblemModel.addTestdata(domainId, pid, `sample_code${suffix}`, Buffer.from(sample_code)));
+        }
         tasks.push(ProblemModel.addTestdata(domainId, pid, 'config.yaml', Buffer.from(yaml.dump(config))));
+        tasks.push(tasks.push(ProblemModel.edit(domainId, pid, { hidden: true })));
         await Promise.all(tasks);
     }
 
@@ -117,8 +162,8 @@ class ImportJsonHandler extends Handler {
                     entry.entryName.toLowerCase().endsWith('.zjson')
                 );
 
-                if (jsonEntries.length === 0) throw new ValidationError('Can\'t find any .zjson files in the ZIP');
-                
+                if (jsonEntries.length === 0) throw new ValidationError('file', null, "Can't find any .zjson files in the ZIP");
+
                 for (const jsonEntry of jsonEntries) {
                     const rawData = JSON.parse(jsonEntry.getData().toString('utf8'));
                     try {
@@ -127,21 +172,34 @@ class ImportJsonHandler extends Handler {
                         console.error(`Error processing ${jsonEntry.entryName}:`, e);
                     }
                 }
-            } catch (e: any) {
-                throw new ValidationError('file', null, `zip parsing failed: ${e.message}`);
+            } catch (e: unknown) {
+                if (e instanceof ValidationError) {
+                    throw e;
+                } else if (e instanceof Error) {
+                    throw new ValidationError('file', null, `ZJSON 解析失敗: ${e.message}`);
+                } else {
+                    throw new ValidationError('file', null, `ZJSON 解析失敗`);
+                }
             }
         } else {
-            console.log('DEBUG: Plain JSON logic triggered');
+            console.log('DEBUG: ZJSON logic triggered');
             try {
                 const rawData = JSON.parse(buf.toString('utf8'));
                 await this.processZJson(domainId, rawData);
-            } catch (e: any) {
-                throw new ValidationError('file', null, `plain JSON parsing failed: ${e.message}`);
+            } catch (e: unknown) {
+                if (e instanceof ValidationError) {
+                    throw e;
+                } else if (e instanceof Error) {
+                    throw new ValidationError('file', null, `ZJSON 解析失敗: ${e.message}`);
+                } else {
+                    throw new ValidationError('file', null, `ZJSON 解析失敗`);
+                }
             }
         }
     }
+
     async get() {
-        this.response.body = { type: 'JSON' };
+        this.response.body = { type: 'Zerojudge (.zjson/.zip)' };
         this.response.template = 'problem_import.html';
     }
 
@@ -149,33 +207,28 @@ class ImportJsonHandler extends Handler {
         console.log('Post started');
         const file = this.request.files.file;
         if (!file) throw new ValidationError('file');
-            try {
-                    console.log('File path:', file.filepath);
-                    await this.fromFile(domainId, file.filepath);
-                    console.log('fromFile finished');
-                    this.response.redirect = this.url('problem_main', { domainId });
-                } catch (e: any) {
-                    console.error('Import Error Trace:', e);
-                    throw new ValidationError('file', null, `import failed: ${e.message}`);
-                }
+        console.log('File path:', file.filepath);
+        await this.fromFile(domainId, file.filepath);
+        console.log('fromFile finished');
+        this.response.redirect = this.url('problem_main', { domainId });
     }
 }
 
 export default class ImportJsonService extends Service {
     static Config = Schema.object({
-    ZjBaseUrl: Schema.string().description('Author Statistic Base URL').required(),
+        ZjBaseUrl: Schema.string().description('Author Statistic Base URL').required(),
     })
     constructor(ctx: Context, config: ReturnType<typeof ImportJsonService.Config>) {
         super(ctx, 'import-json-service');
-        ctx.Route('problem_import_json', '/problem/import/json', ImportJsonHandler, PERM.PERM_CREATE_PROBLEM);
+        ctx.Route('problem_import_json', '/problem/import/json', ImportZerojudgeHandler, PERM.PERM_CREATE_PROBLEM);
         ctx.injectUI('ProblemAdd', 'problem_import_json', { icon: 'copy', text: 'From JSON/ZIP Export' });
         ctx.i18n.load('zh', {
             'From JSON/ZIP Export': '從 JSON/ZIP 導入 (ZJSON)',
             'Author Statistic Base URL': '作者統計頁面基準網址',
             'Example: https://dandanjudge.fdhs.tyc.edu.tw/UserStatistic': '例如: https://dandanjudge.fdhs.tyc.edu.tw/UserStatistic (留空則不嵌入連結)',
         });
-        ImportJsonHandler.ZjUrl = config.ZjBaseUrl;
-    } 
+        ImportZerojudgeHandler.zjUrl = config.ZjBaseUrl;
+    }
 }
 
 
